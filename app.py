@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 import pickle
 import os
+import gdown
 
 # -------------------------------
 # CONFIG
@@ -11,25 +12,11 @@ FILE_ID = "1irOOl0YQysxsR41e0MvjOsfH52Aw2U5T"
 FILE_PATH = "movie_data.pkl"
 
 # -------------------------------
-# DOWNLOAD FILE (ROBUST)
+# DOWNLOAD FILE (FIXED USING GDOWN)
 # -------------------------------
 def download_file():
-    URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
-    session = requests.Session()
-
-    response = session.get(URL, stream=True)
-
-    # Handle large file confirmation
-    for key, value in response.cookies.items():
-        if key.startswith("download_warning"):
-            URL = f"https://drive.google.com/uc?export=download&confirm={value}&id={FILE_ID}"
-            response = session.get(URL, stream=True)
-            break
-
-    with open(FILE_PATH, "wb") as f:
-        for chunk in response.iter_content(32768):
-            if chunk:
-                f.write(chunk)
+    url = f"https://drive.google.com/uc?id={FILE_ID}"
+    gdown.download(url, FILE_PATH, quiet=False, fuzzy=True)
 
 # -------------------------------
 # LOAD DATA
@@ -40,15 +27,24 @@ def load_data():
         st.info("Downloading data... please wait ⏳")
         try:
             download_file()
-        except Exception as e:
+        except Exception:
             st.error("❌ Download failed. Check Google Drive permissions.")
             st.stop()
+
+    # Debug check (VERY IMPORTANT)
+    file_size = os.path.getsize(FILE_PATH)
+    st.write(f"Downloaded file size: {file_size / (1024*1024):.2f} MB")
+
+    # If file is too small → corrupted
+    if file_size < 100_000_000:  # <100MB means wrong file
+        st.error("❌ File corrupted (downloaded HTML instead of .pkl)")
+        st.stop()
 
     try:
         with open(FILE_PATH, "rb") as f:
             movies, cosine_sim = pickle.load(f)
     except Exception:
-        st.error("❌ Failed to load .pkl file (may be corrupted download)")
+        st.error("❌ Failed to load .pkl file (corrupted or incomplete)")
         st.stop()
 
     return movies, cosine_sim
