@@ -8,17 +8,17 @@ import gdown
 # -------------------------------
 # CONFIG
 # -------------------------------
-FILE_ID = "1irOOl0YQysxsR41e0MvjOsfH52Aw2U5T"
+FILE_ID = "18QrbnyxK4IvXZja7nHvD9OsLZFjCZMW_"
 FILE_PATH = "movie_data.pkl"
 
 # -------------------------------
-# DOWNLOAD FILE (ROBUST)
+# DOWNLOAD FILE (FINAL ROBUST VERSION)
 # -------------------------------
 def download_file():
     url = f"https://drive.google.com/uc?id={FILE_ID}"
     try:
         gdown.download(url, FILE_PATH, quiet=False, fuzzy=True, resume=True)
-    except Exception as e:
+    except Exception:
         raise RuntimeError("Download failed")
 
 # -------------------------------
@@ -26,7 +26,6 @@ def download_file():
 # -------------------------------
 @st.cache_data(show_spinner=True)
 def load_data():
-    # Step 1: Download if not exists
     if not os.path.exists(FILE_PATH):
         st.info("Downloading data... please wait ⏳")
         try:
@@ -35,16 +34,16 @@ def load_data():
             st.error("❌ Download failed. Ensure Google Drive file is public.")
             st.stop()
 
-    # Step 2: Validate file size (important)
+    # Validate file size
     file_size = os.path.getsize(FILE_PATH)
 
-    if file_size < 100_000_000:  # less than 100MB → wrong file
-        st.error("❌ File corrupted (downloaded HTML instead of .pkl)")
+    if file_size < 100_000_000:  # if <100MB → corrupted
+        st.error("❌ File corrupted (HTML downloaded instead of .pkl)")
         st.stop()
 
     st.success(f"✅ Data loaded ({file_size / (1024*1024):.2f} MB)")
 
-    # Step 3: Load pickle
+    # Load pickle
     try:
         with open(FILE_PATH, "rb") as f:
             movies, cosine_sim = pickle.load(f)
@@ -58,7 +57,7 @@ def load_data():
 movies, cosine_sim = load_data()
 
 # -------------------------------
-# RECOMMENDATION
+# RECOMMENDATION FUNCTION
 # -------------------------------
 def get_recommendations(title):
     idx = movies[movies['title'] == title].index[0]
