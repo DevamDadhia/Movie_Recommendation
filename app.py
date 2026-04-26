@@ -6,31 +6,35 @@ import gdown
 import os
 
 # -------------------------------
-# 📦 Download + Load Data (Cached)
+# 📦 CONFIG
 # -------------------------------
-
 FILE_ID = "1irOOl0YQysxsR41e0MvjOsfH52Aw2U5T"
 FILE_PATH = "movie_data.pkl"
 
+# -------------------------------
+# 📥 DOWNLOAD + LOAD DATA
+# -------------------------------
 @st.cache_data(show_spinner=True)
 def load_data():
-    # Download file if not present
     if not os.path.exists(FILE_PATH):
+        st.info("📥 Downloading data... Please wait (first run only)")
         url = f"https://drive.google.com/uc?id={FILE_ID}"
         gdown.download(url, FILE_PATH, quiet=False, fuzzy=True)
 
-    # Load pickle file
-    with open(FILE_PATH, "rb") as f:
-        movies, cosine_sim = pickle.load(f)
+    try:
+        with open(FILE_PATH, "rb") as f:
+            movies, cosine_sim = pickle.load(f)
+    except Exception as e:
+        st.error("❌ Failed to load data file. Please check Google Drive link.")
+        st.stop()
 
     return movies, cosine_sim
 
 movies, cosine_sim = load_data()
 
 # -------------------------------
-# 🎯 Recommendation Function
+# 🎯 RECOMMENDATION FUNCTION
 # -------------------------------
-
 def get_recommendations(title):
     idx = movies[movies['title'] == title].index[0]
     sim_scores = list(enumerate(cosine_sim[idx]))
@@ -40,39 +44,35 @@ def get_recommendations(title):
     return movies[['title', 'movie_id']].iloc[movie_indices]
 
 # -------------------------------
-# 🎬 Fetch Poster from TMDB
+# 🎬 FETCH POSTER
 # -------------------------------
-
 def fetch_poster(movie_id):
-    api_key = st.secrets["TMDB_API_KEY"]  # 🔐 secure key
-    url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={api_key}"
-    
     try:
+        api_key = st.secrets["TMDB_API_KEY"]
+        url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={api_key}"
         response = requests.get(url)
         data = response.json()
-        poster_path = data.get('poster_path')
-        
+
+        poster_path = data.get("poster_path")
         if poster_path:
             return f"https://image.tmdb.org/t/p/w500{poster_path}"
         else:
             return "https://via.placeholder.com/150"
-    
+
     except:
         return "https://via.placeholder.com/150"
 
 # -------------------------------
-# 🖥️ Streamlit UI
+# 🖥️ UI
 # -------------------------------
-
 st.title("🎬 Movie Recommendation System")
 
 selected_movie = st.selectbox("Select a movie:", movies['title'].values)
 
-if st.button('Recommend'):
+if st.button("Recommend"):
     recommendations = get_recommendations(selected_movie)
     st.subheader("Top 10 Recommended Movies:")
 
-    # 2 rows × 5 columns layout
     for i in range(0, 10, 5):
         cols = st.columns(5)
         for col, j in zip(cols, range(i, i+5)):
