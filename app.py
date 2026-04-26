@@ -2,30 +2,53 @@ import streamlit as st
 import pandas as pd
 import requests
 import pickle
-import gdown
 import os
 
 # -------------------------------
-# 📦 CONFIG
+# CONFIG
 # -------------------------------
 FILE_ID = "1irOOl0YQysxsR41e0MvjOsfH52Aw2U5T"
 FILE_PATH = "movie_data.pkl"
 
 # -------------------------------
-# 📥 DOWNLOAD + LOAD DATA
+# DOWNLOAD FILE (ROBUST)
+# -------------------------------
+def download_file():
+    URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
+    session = requests.Session()
+
+    response = session.get(URL, stream=True)
+
+    # Handle large file confirmation
+    for key, value in response.cookies.items():
+        if key.startswith("download_warning"):
+            URL = f"https://drive.google.com/uc?export=download&confirm={value}&id={FILE_ID}"
+            response = session.get(URL, stream=True)
+            break
+
+    with open(FILE_PATH, "wb") as f:
+        for chunk in response.iter_content(32768):
+            if chunk:
+                f.write(chunk)
+
+# -------------------------------
+# LOAD DATA
 # -------------------------------
 @st.cache_data(show_spinner=True)
 def load_data():
     if not os.path.exists(FILE_PATH):
-        st.info("📥 Downloading data... Please wait (first run only)")
-        url = f"https://drive.google.com/uc?id={FILE_ID}"
-        gdown.download(url, FILE_PATH, quiet=False, fuzzy=True)
+        st.info("Downloading data... please wait ⏳")
+        try:
+            download_file()
+        except Exception as e:
+            st.error("❌ Download failed. Check Google Drive permissions.")
+            st.stop()
 
     try:
         with open(FILE_PATH, "rb") as f:
             movies, cosine_sim = pickle.load(f)
-    except Exception as e:
-        st.error("❌ Failed to load data file. Please check Google Drive link.")
+    except Exception:
+        st.error("❌ Failed to load .pkl file (may be corrupted download)")
         st.stop()
 
     return movies, cosine_sim
@@ -33,7 +56,7 @@ def load_data():
 movies, cosine_sim = load_data()
 
 # -------------------------------
-# 🎯 RECOMMENDATION FUNCTION
+# RECOMMENDATION
 # -------------------------------
 def get_recommendations(title):
     idx = movies[movies['title'] == title].index[0]
@@ -44,26 +67,24 @@ def get_recommendations(title):
     return movies[['title', 'movie_id']].iloc[movie_indices]
 
 # -------------------------------
-# 🎬 FETCH POSTER
+# POSTER FETCH
 # -------------------------------
 def fetch_poster(movie_id):
     try:
         api_key = st.secrets["TMDB_API_KEY"]
         url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={api_key}"
-        response = requests.get(url)
-        data = response.json()
-
+        data = requests.get(url).json()
         poster_path = data.get("poster_path")
+
         if poster_path:
             return f"https://image.tmdb.org/t/p/w500{poster_path}"
         else:
             return "https://via.placeholder.com/150"
-
     except:
         return "https://via.placeholder.com/150"
 
 # -------------------------------
-# 🖥️ UI
+# UI
 # -------------------------------
 st.title("🎬 Movie Recommendation System")
 
@@ -71,7 +92,7 @@ selected_movie = st.selectbox("Select a movie:", movies['title'].values)
 
 if st.button("Recommend"):
     recommendations = get_recommendations(selected_movie)
-    st.subheader("Top 10 Recommended Movies:")
+    st.subheader("Top 10 Recommended Movies")
 
     for i in range(0, 10, 5):
         cols = st.columns(5)
