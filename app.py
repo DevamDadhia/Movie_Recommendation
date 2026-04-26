@@ -3,23 +3,26 @@ import pandas as pd
 import requests
 import pickle
 import os
-import gdown
 
 # -------------------------------
 # CONFIG
 # -------------------------------
-FILE_ID = "18QrbnyxK4IvXZja7nHvD9OsLZFjCZMW_"
 FILE_PATH = "movie_data.pkl"
+FILE_URL = "https://huggingface.co/datasets/devv123/movie-recommender-data/resolve/main/movie_data.pkl"
 
 # -------------------------------
-# DOWNLOAD FILE (FINAL ROBUST VERSION)
+# DOWNLOAD FILE (FINAL STABLE)
 # -------------------------------
 def download_file():
-    url = f"https://drive.google.com/uc?id={FILE_ID}"
-    try:
-        gdown.download(url, FILE_PATH, quiet=False, fuzzy=True, resume=True)
-    except Exception:
-        raise RuntimeError("Download failed")
+    response = requests.get(FILE_URL, stream=True)
+    
+    if response.status_code != 200:
+        raise Exception("Download failed")
+
+    with open(FILE_PATH, "wb") as f:
+        for chunk in response.iter_content(8192):
+            if chunk:
+                f.write(chunk)
 
 # -------------------------------
 # LOAD DATA
@@ -31,24 +34,23 @@ def load_data():
         try:
             download_file()
         except Exception:
-            st.error("❌ Download failed. Ensure Google Drive file is public.")
+            st.error("❌ Download failed from Hugging Face")
             st.stop()
 
-    # Validate file size
+    # File validation
     file_size = os.path.getsize(FILE_PATH)
 
-    if file_size < 100_000_000:  # if <100MB → corrupted
-        st.error("❌ File corrupted (HTML downloaded instead of .pkl)")
+    if file_size < 100_000_000:
+        st.error("❌ File corrupted or incomplete download")
         st.stop()
 
     st.success(f"✅ Data loaded ({file_size / (1024*1024):.2f} MB)")
 
-    # Load pickle
     try:
         with open(FILE_PATH, "rb") as f:
             movies, cosine_sim = pickle.load(f)
     except Exception:
-        st.error("❌ Failed to load .pkl file (corrupted or incompatible)")
+        st.error("❌ Failed to load .pkl file")
         st.stop()
 
     return movies, cosine_sim
@@ -57,7 +59,7 @@ def load_data():
 movies, cosine_sim = load_data()
 
 # -------------------------------
-# RECOMMENDATION FUNCTION
+# RECOMMENDATION
 # -------------------------------
 def get_recommendations(title):
     idx = movies[movies['title'] == title].index[0]
